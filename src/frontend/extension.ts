@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getRegisters } from "./getRegisters";
 
 import { PeripheralTreeProvider } from './views/peripheral';
 import { RegisterTreeProvider } from './views/registers';
@@ -24,6 +25,8 @@ import { RTTTerminal } from './rtt_terminal';
 import { GDBServerConsole } from './server_console';
 import { CDebugSession, CDebugChainedSessionItem } from './cortex_debug_session';
 import { ServerConsoleLog } from '../backend/server';
+import { HelloWorldPanel } from './HelloWorldPanel';
+import { RegisterNode } from './views/nodes/registernode';
 
 const commandExistsSync = require('command-exists').sync;
 interface SVDInfo {
@@ -79,13 +82,17 @@ export class CortexDebugExtension {
             vscode.workspace.registerTextDocumentContentProvider('examinememory', this.memoryProvider),
             vscode.workspace.registerTextDocumentContentProvider('disassembly', new DisassemblyContentProvider()),
 
+            // vscode.commands.registerCommand('cortex-debug.ask', () => {
+            //     vscode.window.showInformationMessage("How was today?", "good", "bad");
+            // }),
+
             vscode.commands.registerCommand('cortex-debug.peripherals.updateNode', this.peripheralsUpdateNode.bind(this)),
             vscode.commands.registerCommand('cortex-debug.peripherals.copyValue', this.peripheralsCopyValue.bind(this)),
             vscode.commands.registerCommand('cortex-debug.peripherals.setFormat', this.peripheralsSetFormat.bind(this)),
             vscode.commands.registerCommand('cortex-debug.peripherals.forceRefresh', this.peripheralsForceRefresh.bind(this)),
             vscode.commands.registerCommand('cortex-debug.peripherals.pin', this.peripheralsTogglePin.bind(this)),
             vscode.commands.registerCommand('cortex-debug.peripherals.unpin', this.peripheralsTogglePin.bind(this)),
-            
+
             vscode.commands.registerCommand('cortex-debug.registers.copyValue', this.registersCopyValue.bind(this)),
             vscode.commands.registerCommand('cortex-debug.registers.refresh', this.registersRefresh.bind(this)),
             vscode.commands.registerCommand('cortex-debug.registers.regHexModeTurnOn', this.registersNaturalMode.bind(this, false)),
@@ -93,6 +100,8 @@ export class CortexDebugExtension {
             vscode.commands.registerCommand('cortex-debug.varHexModeTurnOn', this.variablesNaturalMode.bind(this, false)),
             vscode.commands.registerCommand('cortex-debug.varHexModeTurnOff', this.variablesNaturalMode.bind(this, true)),
             vscode.commands.registerCommand('cortex-debug.toggleVariableHexFormat', this.toggleVariablesHexMode.bind(this)),
+
+            vscode.commands.registerCommand('cortex-debug.visuals', this.visuals.bind(this)),
 
             vscode.commands.registerCommand('cortex-debug.examineMemory', this.examineMemory.bind(this)),
             vscode.commands.registerCommand('cortex-debug.viewDisassembly', this.showDisassembly.bind(this)),
@@ -138,6 +147,11 @@ export class CortexDebugExtension {
             return session;
         }
         return null;
+    }
+
+    private visuals(){
+        const regData = getRegisters();
+        HelloWorldPanel.createOrShow(this.context.extensionUri);
     }
 
     private resetDevice() {
@@ -956,6 +970,7 @@ export class CortexDebugExtension {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+
     return new CortexDebugExtension(context);
 }
 

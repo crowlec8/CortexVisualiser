@@ -466,6 +466,11 @@
             },
             {
                 "category": "Cortex-Debug",
+                "command": "cortex-debug.visuals",
+                "title": "Visuals"
+            },
+            {
+                "category": "Cortex-Debug",
                 "command": "cortex-debug.viewDisassembly",
                 "title": "View Disassembly (Function)"
             },
@@ -2605,6 +2610,10 @@
                     "when": "debugType == cortex-debug"
                 },
                 {
+                    "command": "cortex-debug.visuals",
+                    "when": "debugType == cortex-debug"
+                },
+                {
                     "command": "cortex-debug.viewDisassembly",
                     "when": "debugType == cortex-debug"
                 },
@@ -2767,6 +2776,7 @@
         "json-stream-stringify": "^2.0.4",
         "nan": "^2.14.2",
         "node-interval-tree": "^1.3.3",
+        "npm-watch": "^0.11.0",
         "prebuild-install": "^7.0.1",
         "ringbufferjs": "^1.1.0",
         "safe-buffer": "^5.2.1",
@@ -2775,6 +2785,7 @@
         "universal-analytics": "^0.5.3",
         "uuid": "^8.3.2",
         "vscode-jsonrpc": "^6.0.0",
+        "watch": "^1.0.2",
         "xml2js": "^0.4.23"
     },
     "description": "ARM Cortex-M GDB Debugger support for VSCode",
