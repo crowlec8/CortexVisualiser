@@ -4,6 +4,7 @@ import { getNonce } from "./getNonce";
 import { RegisterNode, RegisterValue } from "./views/nodes/registernode";
 import { CortexDebugExtension } from './extension';
 import internal = require("stream");
+import { parseHexOrDecInt } from "../common";
 
 export class HelloWorldPanel {
   /**
@@ -18,27 +19,11 @@ export class HelloWorldPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
   private registers: RegisterNode[] = [];
-  private registerMap: { [index: number]: RegisterNode } = {};
-  private loaded: boolean = false;
   public myTreeItem: TreeItem;
   public wsFolderPath: string;
-
-  // public newNameRefreshRegisterValues() {
-  //   const session = CortexDebugExtension.getActiveCDSession();
-  //   session.customRequest('read-registers').then((data) => {
-  //     console.log("Function Called");
-  //       data.forEach((reg, idx) => {
-  //         if (reg) {
-  //           //const rn = new RegisterNode(reg, idx);
-  //           this.registers.push(reg);
-  //           this.registerMap[idx] = reg;
-  //         }
-  //           // const index = parseInt(reg.number, 10);
-  //           // const regNode = this.registerMap[index];
-  //           // if (regNode) { regNode.setValue(reg.value); }
-  //       });
-  //   });
-  // }
+  private bytes: number;
+  private bytesArray: number[] = [];
+  private addresses: number[] = [];
 
   public static createOrShow(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
@@ -124,17 +109,22 @@ export class HelloWorldPanel {
     }
   }
 
+  public getAddresses(startAddress: number, gap: number, length: number){
+    for(let i = 0; i < length; i ++){
+      let j = i * gap;
+      this.addresses[i] = (startAddress + j);
+      this.bytesArray[i] = this.bytes[j];
+    }
+  }
+
   public async _update() {
     const webview = this._panel.webview;
 
     const session = CortexDebugExtension.getActiveCDSession();
-        const response = session.customRequest('read-registers').then((data) => {
-            data.forEach((reg) => {
-              if (reg) {
-                const index = parseInt(reg.number, 10);
-                this.registers[index] = reg.value;
-              }
-            });
+    session.customRequest('read-memory', { address: 0x20000000, length: 40 }).then((data) => {
+            this.bytes = data.bytes;
+            const address = data.startAddress;
+            this.getAddresses(address, 4, 10);
             this._panel.webview.html = this._getHtmlForWebview(webview);
         });
     webview.onDidReceiveMessage(async (data) => {
@@ -190,9 +180,6 @@ export class HelloWorldPanel {
 
     // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
-    // this.newNameRefreshRegisterValues()
-    const after = 0;
-
 
     return `<!DOCTYPE html>
 			<html lang="en">
@@ -219,6 +206,7 @@ export class HelloWorldPanel {
         }
         .grid-item {
           background-color: rgba(255, 255, 255, 1);
+          color: rgba(0, 0, 0, 1);
           border: 1px solid rgba(0, 0, 0, 0.8);
           padding: 20px;
           font-size: 30px;
@@ -227,35 +215,40 @@ export class HelloWorldPanel {
         </style>
 			</head>
       <body>
-      <h1>Hello World</h1>
       <div class="grid-container">
-        <div class="grid-item">address</div>
-        <div class="grid-item">memory</div>
-        <div class="grid-item">index</div>
-        <div class="grid-item">0x20000028</div>
-        <div class="grid-item">${this.registers[0]}</div>
-        <div class="grid-item"></div>
-        <div class="grid-item">0x20000024</div>
-        <div class="grid-item">above this</div>
-        <div class="grid-item">5</div>
-        <div class="grid-item">0x20000020</div>
-        <div class="grid-item">28</div>
-        <div class="grid-item">4</div>
-        <div class="grid-item">0x2000001C</div>
-        <div class="grid-item">30</div>
-        <div class="grid-item">3</div>
-        <div class="grid-item">0x20000018</div>
-        <div class="grid-item">17</div>
-        <div class="grid-item">2</div>
-        <div class="grid-item">0x20000014</div>
-        <div class="grid-item">31</div>
-        <div class="grid-item">1</div>
-        <div class="grid-item">0x20000010</div>
-        <div class="grid-item">5</div>
+        <div class="grid-item"><b>address</b></div>
+        <div class="grid-item"><b>memory</b></div>
+        <div class="grid-item"><b>index</b></div>
+        <div class="grid-item">${this.addresses[0]}</div>
+        <div class="grid-item">${this.bytesArray[0]}</div>
         <div class="grid-item">0</div>
-        <div class="grid-item">0x2000000C</div>
-        <div class="grid-item">????????</div>
-        <div class="grid-item"></div>
+        <div class="grid-item">${this.addresses[1]}</div>
+        <div class="grid-item">${this.bytesArray[1]}</div>
+        <div class="grid-item">1</div>
+        <div class="grid-item">${this.addresses[2]}</div>
+        <div class="grid-item">${this.bytesArray[2]}</div>
+        <div class="grid-item">2</div>
+        <div class="grid-item">${this.addresses[3]}</div>
+        <div class="grid-item">${this.bytesArray[3]}</div>
+        <div class="grid-item">3</div>
+        <div class="grid-item">${this.addresses[4]}</div>
+        <div class="grid-item">${this.bytesArray[4]}</div>
+        <div class="grid-item">4</div>
+        <div class="grid-item">${this.addresses[5]}</div>
+        <div class="grid-item">${this.bytesArray[5]}</div>
+        <div class="grid-item">5</div>
+        <div class="grid-item">${this.addresses[6]}</div>
+        <div class="grid-item">${this.bytesArray[6]}</div>
+        <div class="grid-item">6</div>
+        <div class="grid-item">${this.addresses[7]}</div>
+        <div class="grid-item">${this.bytesArray[7]}</div>
+        <div class="grid-item">7</div>
+        <div class="grid-item">${this.addresses[8]}</div>
+        <div class="grid-item">${this.bytesArray[8]}</div>
+        <div class="grid-item">8</div>
+        <div class="grid-item">${this.addresses[9]}</div>
+        <div class="grid-item">${this.bytesArray[9]}</div>
+        <div class="grid-item">9</div>
       </div>
 			</body>
 			</html>`;
