@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getRegisters } from "./getRegisters";
 
 import { PeripheralTreeProvider } from './views/peripheral';
 import { RegisterTreeProvider } from './views/registers';
@@ -150,7 +149,6 @@ export class CortexDebugExtension {
     }
 
     private visuals(){
-        const regData = getRegisters();
         HelloWorldPanel.createOrShow(this.context.extensionUri);
     }
 
@@ -810,6 +808,7 @@ export class CortexDebugExtension {
     }
 
     private receivedStopEvent(e: vscode.DebugSessionCustomEvent) {
+        HelloWorldPanel.currentPanel._update();
         const mySession = CDebugSession.FindSession(e.session);
         mySession.status = 'stopped';
         this.peripheralProvider.debugStopped(e.session);

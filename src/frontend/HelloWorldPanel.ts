@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { TreeItem } from "vscode";
 import { getNonce } from "./getNonce";
-import { getRegisters } from "./getRegisters";
 import { RegisterNode, RegisterValue } from "./views/nodes/registernode";
 import { CortexDebugExtension } from './extension';
 import internal = require("stream");
@@ -125,10 +124,19 @@ export class HelloWorldPanel {
     }
   }
 
-  private async _update() {
+  public async _update() {
     const webview = this._panel.webview;
 
-    this._panel.webview.html = this._getHtmlForWebview(webview);
+    const session = CortexDebugExtension.getActiveCDSession();
+        const response = session.customRequest('read-registers').then((data) => {
+            data.forEach((reg) => {
+              if (reg) {
+                const index = parseInt(reg.number, 10);
+                this.registers[index] = reg.value;
+              }
+            });
+            this._panel.webview.html = this._getHtmlForWebview(webview);
+        });
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         
@@ -225,7 +233,7 @@ export class HelloWorldPanel {
         <div class="grid-item">memory</div>
         <div class="grid-item">index</div>
         <div class="grid-item">0x20000028</div>
-        <div class="grid-item">${this.registers[1]}</div>
+        <div class="grid-item">${this.registers[0]}</div>
         <div class="grid-item"></div>
         <div class="grid-item">0x20000024</div>
         <div class="grid-item">above this</div>
