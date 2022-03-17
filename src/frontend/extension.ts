@@ -149,7 +149,36 @@ export class CortexDebugExtension {
     }
 
     private visuals(){
-        HelloWorldPanel.createOrShow(this.context.extensionUri);
+        vscode.window.showInputBox({
+            placeHolder: 'Enter a valid C/gdb expression. Use 0x prefix for hexadecimal numbers',
+            ignoreFocusOut: true,
+            prompt: 'Memory Address'
+        }).then(
+            (address) => {
+                address = address.trim();
+                if (!this.validateAddress(address)) {
+                    vscode.window.showErrorMessage('Invalid memory address entered');
+                    Reporting.sendEvent('Examine Memory', 'Invalid Address', address);
+                    return;
+                }
+
+                vscode.window.showInputBox({
+                    placeHolder: 'Enter a constant value. Prefix with 0x for hexadecimal format.',
+                    ignoreFocusOut: true,
+                    prompt: 'Length'
+                }).then(
+                    (length) => {
+                        length = length.trim();
+                        if (!this.validateValue(length)) {
+                            vscode.window.showErrorMessage('Invalid length entered');
+                            Reporting.sendEvent('Examine Memory', 'Invalid Length', length);
+                            return;
+                        }
+                        HelloWorldPanel.createOrShow(this.context.extensionUri, address, length);
+                    }
+                );
+            }
+        );
     }
 
     private resetDevice() {
@@ -360,27 +389,27 @@ export class CortexDebugExtension {
             Reporting.sendEvent('Force Disassembly', 'Set', force ? 'Forced' : 'Auto');
         }, (error) => {});
     }
-
-    private examineMemory() {
-        function validateValue(address) {
-            if (/^0x[0-9a-f]{1,8}$/i.test(address)) {
-                return address;
-            }
-            else if (/^[0-9]+$/i.test(address)) {
-                return address;
-            }
-            else {
-                return null;
-            }
-        }
-
-        function validateAddress(address: string) {
-            if (address === '') {
-                return null;
-            }
+    
+    private validateValue(address) {
+        if (/^0x[0-9a-f]{1,8}$/i.test(address)) {
             return address;
         }
+        else if (/^[0-9]+$/i.test(address)) {
+            return address;
+        }
+        else {
+            return null;
+        }
+    }
 
+    private validateAddress(address: string) {
+        if (address === '') {
+            return null;
+        }
+        return address;
+    }
+
+    private examineMemory() {
         const session = CortexDebugExtension.getActiveCDSession();
         if (!session) {
             vscode.window.showErrorMessage('No cortex-debug session available');
@@ -394,7 +423,7 @@ export class CortexDebugExtension {
         }).then(
             (address) => {
                 address = address.trim();
-                if (!validateAddress(address)) {
+                if (!this.validateAddress(address)) {
                     vscode.window.showErrorMessage('Invalid memory address entered');
                     Reporting.sendEvent('Examine Memory', 'Invalid Address', address);
                     return;
@@ -407,7 +436,7 @@ export class CortexDebugExtension {
                 }).then(
                     (length) => {
                         length = length.trim();
-                        if (!validateValue(length)) {
+                        if (!this.validateValue(length)) {
                             vscode.window.showErrorMessage('Invalid length entered');
                             Reporting.sendEvent('Examine Memory', 'Invalid Length', length);
                             return;

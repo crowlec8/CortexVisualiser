@@ -5,6 +5,7 @@ import { RegisterNode, RegisterValue } from "./views/nodes/registernode";
 import { CortexDebugExtension } from './extension';
 import internal = require("stream");
 import { parseHexOrDecInt } from "../common";
+import { hexFormat } from './utils';
 
 export class HelloWorldPanel {
   /**
@@ -18,14 +19,17 @@ export class HelloWorldPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
-  private registers: RegisterNode[] = [];
   public myTreeItem: TreeItem;
   public wsFolderPath: string;
   private bytes: number;
   private bytesArray: number[] = [];
-  private addresses: number[] = [];
+  private addresses: string[] = [];
+  public static paramAdd: string;
+  public static paramLen: string;
 
-  public static createOrShow(extensionUri: vscode.Uri) {
+  public static createOrShow(extensionUri: vscode.Uri, address: string, length: string) {
+    HelloWorldPanel.paramAdd = address;
+    HelloWorldPanel.paramLen = length;
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -110,21 +114,38 @@ export class HelloWorldPanel {
   }
 
   public getAddresses(startAddress: number, gap: number, length: number){
-    for(let i = 0; i < length; i ++){
+    // gap is equal to the size of blocks we want to look at 4 = word,,,, 4 bytes = 32bits
+    for(let i = 0; i < length/gap; i ++){
       let j = i * gap;
-      this.addresses[i] = (startAddress + j);
+      this.addresses[i] = hexFormat((startAddress + j), 8, true);
       this.bytesArray[i] = this.bytes[j];
     }
   }
 
+  private parseQuery(queryString) {
+    const query = {};
+    function addToQuery(str: string) {
+        const pair = str.split('=');
+        const name = pair.shift();      // First part is name
+        query[name] = pair.join('=');   // Rest is the value
+    }
+    // THe API has already decoded the Uri or else we could have just split on '&' and '=' and be order-independent
+    // We know that we will have three parameters and it is the first one that will have complex stuff in it
+    const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+    addToQuery(pairs.pop());            // get timestamp
+    addToQuery(pairs.pop());            // get length
+    addToQuery(pairs.join('&'));        // Rest is the addr-expression
+    return query;
+  }
+
   public async _update() {
     const webview = this._panel.webview;
-
     const session = CortexDebugExtension.getActiveCDSession();
-    session.customRequest('read-memory', { address: 0x20000000, length: 40 }).then((data) => {
+    
+    session.customRequest('read-memory', { address: HelloWorldPanel.paramAdd, length: HelloWorldPanel.paramLen }).then((data) => {
             this.bytes = data.bytes;
-            const address = data.startAddress;
-            this.getAddresses(address, 4, 10);
+            const address = parseHexOrDecInt(data.startAddress);
+            this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
             this._panel.webview.html = this._getHtmlForWebview(webview);
         });
     webview.onDidReceiveMessage(async (data) => {
