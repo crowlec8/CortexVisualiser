@@ -52,7 +52,7 @@ export class HelloWorldPanel {
 
         // And restrict the webview to only loading content from our extension's `media` directory.
         localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, "media"),
+          vscode.Uri.joinPath(extensionUri, "src/media"),
           vscode.Uri.joinPath(extensionUri, "out/compiled"),
         ],
       }
@@ -176,25 +176,27 @@ export class HelloWorldPanel {
 
   private _getHtmlForWebview(webview: vscode.Webview) {
     // // And the uri we use to load this script in the webview
-    // const scriptUri = webview.asWebviewUri(
-    //   vscode.Uri.joinPath(this._extensionUri, "out", "compiled/swiper.js")
-    // );
-
+    const scriptPath = vscode.Uri.joinPath(
+      this._extensionUri,
+      "src/media",
+      "helper.js"
+    );
     // Local path to css styles
     const styleResetPath = vscode.Uri.joinPath(
       this._extensionUri,
-      "media",
+      "src/media",
       "reset.css"
     );
     const stylesPathMainPath = vscode.Uri.joinPath(
       this._extensionUri,
-      "media",
+      "src/media",
       "vscode.css"
     );
 
     // Uri to load styles into webview
     const stylesResetUri = webview.asWebviewUri(styleResetPath);
     const stylesMainUri = webview.asWebviewUri(stylesPathMainPath);
+    const scriptUri = webview.asWebviewUri(scriptPath);
     // const cssUri = webview.asWebviewUri(
     //   vscode.Uri.joinPath(this._extensionUri, "out", "compiled/swiper.css")
     // );
@@ -272,6 +274,7 @@ export class HelloWorldPanel {
         <div class="grid-item">9</div>
       </div>
 			</body>
+      <script src="${scriptUri}" nonce="${nonce}">
 			</html>`;
   }
 }
