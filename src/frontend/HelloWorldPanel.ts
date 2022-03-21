@@ -22,10 +22,12 @@ export class HelloWorldPanel {
   public myTreeItem: TreeItem;
   public wsFolderPath: string;
   private bytes: number;
-  private bytesArray: number[] = [];
+  private stringArray: string[] = [];
+  private wordArray: number[] = [];
   private addresses: string[] = [];
   public static paramAdd: string;
   public static paramLen: string;
+  private stringLen: number;
 
   public static createOrShow(extensionUri: vscode.Uri, address: string, length: string) {
     HelloWorldPanel.paramAdd = address;
@@ -118,24 +120,31 @@ export class HelloWorldPanel {
     for(let i = 0; i < length/gap; i ++){
       let j = i * gap;
       this.addresses[i] = hexFormat((startAddress + j), 8, true);
-      this.bytesArray[i] = this.bytes[j];
+      this.wordArray[i] = this.bytes[j];
     }
   }
 
-  private parseQuery(queryString) {
-    const query = {};
-    function addToQuery(str: string) {
-        const pair = str.split('=');
-        const name = pair.shift();      // First part is name
-        query[name] = pair.join('=');   // Rest is the value
+  public countStringLen(){
+    var i = 0;
+    var len = 0;
+    var end = false;
+    while(end == false){
+      if(this.bytes[i] != 0){
+        len++;
+      }
+      else{
+        i--;
+        end = true;
+      }
+      i++
     }
-    // THe API has already decoded the Uri or else we could have just split on '&' and '=' and be order-independent
-    // We know that we will have three parameters and it is the first one that will have complex stuff in it
-    const pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
-    addToQuery(pairs.pop());            // get timestamp
-    addToQuery(pairs.pop());            // get length
-    addToQuery(pairs.join('&'));        // Rest is the addr-expression
-    return query;
+    return i;
+  }
+
+  public decToAscii(){
+    for(var i = 0; i < this.stringLen; i++){
+      this.stringArray[i] = String.fromCharCode(this.bytes[i])
+    }
   }
 
   public async _update() {
@@ -146,6 +155,8 @@ export class HelloWorldPanel {
             this.bytes = data.bytes;
             const address = parseHexOrDecInt(data.startAddress);
             this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
+            this.stringLen = this.countStringLen();
+            this.decToAscii();
             this._panel.webview.html = this._getHtmlForWebview(webview);
         });
     webview.onDidReceiveMessage(async (data) => {
@@ -208,7 +219,7 @@ export class HelloWorldPanel {
 
     // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
-    const repeatNum = 3;
+    const repeatNum = this.stringLen;
 
     return `<!DOCTYPE html>
 			<html lang="en">
@@ -229,7 +240,7 @@ export class HelloWorldPanel {
         <style>
         .grid-container {
           display: grid;
-          grid-template-columns: 1fr repeat(${repeatNum}, 3fr);
+          grid-template-columns: 1fr repeat(${repeatNum}, 1fr);
           background-color: #2196F3;
           padding: 0px;
         }
@@ -245,18 +256,19 @@ export class HelloWorldPanel {
 			</head>
       <body>
       <div class="grid-container">
-        <div class="grid-item"><b>address</b></div>
-        <div class="grid-item">+4</div>
-        <div class="grid-item">+4</div>
-        <div class="grid-item">+4</div>
         <div class="grid-item">${this.addresses[0]}</div>
-        <div class="grid-item">${this.bytesArray[0]}</div>
-        <div class="grid-item">${this.bytesArray[1]}</div>
-        <div class="grid-item">${this.bytesArray[2]}</div>
-        <div class="grid-item">${this.addresses[3]}</div>
-        <div class="grid-item">${this.bytesArray[3]}</div>
-        <div class="grid-item">${this.bytesArray[4]}</div>
-        <div class="grid-item">${this.bytesArray[5]}</div>
+        <div class="grid-item">${this.stringArray[0]}</div>
+        <div class="grid-item">${this.stringArray[1]}</div>
+        <div class="grid-item">${this.stringArray[2]}</div>
+        <div class="grid-item">${this.stringArray[3]}</div>
+        <div class="grid-item">${this.stringArray[4]}</div>
+        <div class="grid-item">${this.stringArray[5]}</div>
+        <div class="grid-item">${this.stringArray[6]}</div>
+        <div class="grid-item">${this.stringArray[7]}</div>
+        <div class="grid-item">${this.stringArray[8]}</div>
+        <div class="grid-item">${this.stringArray[9]}</div>
+        <div class="grid-item">${this.stringArray[10]}</div>
+        <div class="grid-item">${this.stringArray[11]}</div>
       </div>
 			</body>
       <script src="${scriptUri}" nonce="${nonce}">
@@ -304,34 +316,34 @@ export class HelloWorldPanel {
 //   <div class="grid-item"><b>memory</b></div>
 //   <div class="grid-item"><b>index</b></div>
 //   <div class="grid-item">${this.addresses[0]}</div>
-//   <div class="grid-item">${this.bytesArray[0]}</div>
+//   <div class="grid-item">${this.wordArray[0]}</div>
 //   <div class="grid-item">0</div>
 //   <div class="grid-item">${this.addresses[1]}</div>
-//   <div class="grid-item">${this.bytesArray[1]}</div>
+//   <div class="grid-item">${this.wordArray[1]}</div>
 //   <div class="grid-item">1</div>
 //   <div class="grid-item">${this.addresses[2]}</div>
-//   <div class="grid-item">${this.bytesArray[2]}</div>
+//   <div class="grid-item">${this.wordArray[2]}</div>
 //   <div class="grid-item">2</div>
 //   <div class="grid-item">${this.addresses[3]}</div>
-//   <div class="grid-item">${this.bytesArray[3]}</div>
+//   <div class="grid-item">${this.wordArray[3]}</div>
 //   <div class="grid-item">3</div>
 //   <div class="grid-item">${this.addresses[4]}</div>
-//   <div class="grid-item">${this.bytesArray[4]}</div>
+//   <div class="grid-item">${this.wordArray[4]}</div>
 //   <div class="grid-item">4</div>
 //   <div class="grid-item">${this.addresses[5]}</div>
-//   <div class="grid-item">${this.bytesArray[5]}</div>
+//   <div class="grid-item">${this.wordArray[5]}</div>
 //   <div class="grid-item">5</div>
 //   <div class="grid-item">${this.addresses[6]}</div>
-//   <div class="grid-item">${this.bytesArray[6]}</div>
+//   <div class="grid-item">${this.wordArray[6]}</div>
 //   <div class="grid-item">6</div>
 //   <div class="grid-item">${this.addresses[7]}</div>
-//   <div class="grid-item">${this.bytesArray[7]}</div>
+//   <div class="grid-item">${this.wordArray[7]}</div>
 //   <div class="grid-item">7</div>
 //   <div class="grid-item">${this.addresses[8]}</div>
-//   <div class="grid-item">${this.bytesArray[8]}</div>
+//   <div class="grid-item">${this.wordArray[8]}</div>
 //   <div class="grid-item">8</div>
 //   <div class="grid-item">${this.addresses[9]}</div>
-//   <div class="grid-item">${this.bytesArray[9]}</div>
+//   <div class="grid-item">${this.wordArray[9]}</div>
 //   <div class="grid-item">9</div>
 // </div>
 // </body>
@@ -340,6 +352,58 @@ export class HelloWorldPanel {
 
 
 
+//--------------feature 2 shell, set repeatNum to number for columns wanted---------- 
+// return `<!DOCTYPE html>
+// 			<html lang="en">
+// 			<head>
+// 				<meta charset="UTF-8">
+// 				<!--
+// 					Use a content security policy to only allow loading images from https or from our extension directory,
+// 					and only allow scripts that have a specific nonce.
+//         -->
+//         <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+//       webview.cspSource
+//     }; script-src 'nonce-${nonce}';">
+// 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+//         <link href="${stylesResetUri}" rel="stylesheet">
+//         <link href="${stylesMainUri}" rel="stylesheet">
+//         <script nonce="${nonce}">
+//         </script>
+//         <style>
+//         .grid-container {
+//           display: grid;
+//           grid-template-columns: 1fr repeat(${repeatNum}, 3fr);
+//           background-color: #2196F3;
+//           padding: 0px;
+//         }
+//         .grid-item {
+//           background-color: rgba(255, 255, 255, 1);
+//           color: rgba(0, 0, 0, 1);
+//           border: 1px solid rgba(0, 0, 0, 0.8);
+//           padding: 20px;
+//           font-size: 30px;
+//           text-align: center;
+//         }
+//         </style>
+// 			</head>
+//       <body>
+//       <div class="grid-container">
+//         <div class="grid-item"><b>address</b></div>
+//         <div class="grid-item">+4</div>
+//         <div class="grid-item">+4</div>
+//         <div class="grid-item">+4</div>
+//         <div class="grid-item">${this.addresses[0]}</div>
+//         <div class="grid-item">${this.wordArray[0]}</div>
+//         <div class="grid-item">${this.wordArray[1]}</div>
+//         <div class="grid-item">${this.wordArray[2]}</div>
+//         <div class="grid-item">${this.addresses[3]}</div>
+//         <div class="grid-item">${this.wordArray[3]}</div>
+//         <div class="grid-item">${this.wordArray[4]}</div>
+//         <div class="grid-item">${this.wordArray[5]}</div>
+//       </div>
+// 			</body>
+//       <script src="${scriptUri}" nonce="${nonce}">
+// 			</html>`;
 
 
 
