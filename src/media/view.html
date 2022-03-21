@@ -1,0 +1,21 @@
+<body>
+    <div id="output_div"></div>
+    <script>
+      var addresses = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
+      var bytesArray = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
+      var outputHTML = "<div class='grid-container'>";
+      for (var i = 0; i < addresses.length; i++){
+        outputHTML += "<div class='grid-item'>";
+        outputHTML += addresses[i];
+        outputHTML += "</div>"
+        outputHTML += "<div class='grid-item'>";
+        outputHTML += bytesArray[i];
+        outputHTML += "</div>"
+        outputHTML += "<div class='grid-item'>";
+        outputHTML += i;
+        outputHTML += "</div>"
+      }
+      outputHTML += "</div>"
+      document.getElementById("output_div").innerHTML = outputHTML;
+    </script>
+  </body>
