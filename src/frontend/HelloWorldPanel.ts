@@ -28,6 +28,9 @@ export class HelloWorldPanel {
   public static paramAdd: string;
   public static paramLen: string;
   private stringLen: number;
+  private spSave: number = 0;
+  private spDiff: number;
+
 
   public static createOrShow(extensionUri: vscode.Uri, address: string, length: string) {
     HelloWorldPanel.paramAdd = address;
@@ -151,13 +154,35 @@ export class HelloWorldPanel {
     const webview = this._panel.webview;
     const session = CortexDebugExtension.getActiveCDSession();
     
+    /* ---------uncomment for features 1-3--------------
     session.customRequest('read-memory', { address: HelloWorldPanel.paramAdd, length: HelloWorldPanel.paramLen }).then((data) => {
-            this.bytes = data.bytes;
-            const address = parseHexOrDecInt(data.startAddress);
-            this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
-            this.stringLen = this.countStringLen();
-            this.decToAscii();
-            this._panel.webview.html = this._getHtmlForWebview(webview);
+              this.bytes = data.bytes;
+              const address = parseHexOrDecInt(data.startAddress);
+              this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
+              this.stringLen = this.countStringLen();
+              this.decToAscii();
+              this._panel.webview.html = this._getHtmlForWebview(webview);
+          });
+    */
+
+
+    session.customRequest('read-registers').then((data) => {
+      const addressInt = parseHexOrDecInt(HelloWorldPanel.paramAdd);
+      const sp = data[13].value;
+      if(this.spSave == addressInt){
+        this.spDiff = this.spSave - sp;
+      }
+      this.spSave = sp;
+      const dataLength = parseInt(HelloWorldPanel.paramLen, 10);
+      const startAdd = addressInt - dataLength;
+      session.customRequest('read-memory', { address: startAdd, length: HelloWorldPanel.paramLen }).then((data) => {
+              this.bytes = data.bytes;
+              const address = parseHexOrDecInt(data.startAddress);
+              this.getAddresses(address, 4, dataLength);
+              this.stringLen = this.countStringLen();
+              this.decToAscii();
+              this._panel.webview.html = this._getHtmlForWebview(webview);
+          });
         });
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
@@ -219,60 +244,65 @@ export class HelloWorldPanel {
 
     // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
-    const repeatNum = this.stringLen;
+    const repeatNum = this.spDiff / 4;
 
     return `<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
-				<!--
-					Use a content security policy to only allow loading images from https or from our extension directory,
-					and only allow scripts that have a specific nonce.
-        -->
-        <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-      webview.cspSource
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <!--
+        Use a content security policy to only allow loading images from https or from our extension directory,
+        and only allow scripts that have a specific nonce.
+      -->
+      <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+    webview.cspSource
     }; script-src 'nonce-${nonce}';">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link href="${stylesResetUri}" rel="stylesheet">
-        <link href="${stylesMainUri}" rel="stylesheet">
-        <script nonce="${nonce}">
-        </script>
-        <style>
-        .grid-container {
-          display: grid;
-          grid-template-columns: 1fr repeat(${repeatNum}, 1fr);
-          background-color: #2196F3;
-          padding: 0px;
-        }
-        .grid-item {
-          background-color: rgba(255, 255, 255, 1);
-          color: rgba(0, 0, 0, 1);
-          border: 1px solid rgba(0, 0, 0, 0.8);
-          padding: 20px;
-          font-size: 30px;
-          text-align: center;
-        }
-        </style>
-			</head>
-      <body>
-      <div class="grid-container">
-        <div class="grid-item">${this.addresses[0]}</div>
-        <div class="grid-item">${this.stringArray[0]}</div>
-        <div class="grid-item">${this.stringArray[1]}</div>
-        <div class="grid-item">${this.stringArray[2]}</div>
-        <div class="grid-item">${this.stringArray[3]}</div>
-        <div class="grid-item">${this.stringArray[4]}</div>
-        <div class="grid-item">${this.stringArray[5]}</div>
-        <div class="grid-item">${this.stringArray[6]}</div>
-        <div class="grid-item">${this.stringArray[7]}</div>
-        <div class="grid-item">${this.stringArray[8]}</div>
-        <div class="grid-item">${this.stringArray[9]}</div>
-        <div class="grid-item">${this.stringArray[10]}</div>
-        <div class="grid-item">${this.stringArray[11]}</div>
-      </div>
-			</body>
-      <script src="${scriptUri}" nonce="${nonce}">
-			</html>`;
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="${stylesResetUri}" rel="stylesheet">
+      <link href="${stylesMainUri}" rel="stylesheet">
+      <script nonce="${nonce}">
+      </script>
+      <style>
+      .grid-container {
+        display: grid;
+        grid-template-columns: 1fr repeat(${repeatNum}, 3fr) 1fr;
+        background-color: #2196F3;
+        padding: 0px;
+      }
+      .grid-item {
+        background-color: rgba(255, 255, 255, 1);
+        color: rgba(0, 0, 0, 1);
+        border: 1px solid rgba(0, 0, 0, 0.8);
+        padding: 20px;
+        font-size: 30px;
+        text-align: center;
+      }
+      </style>
+    </head>
+    <body>
+    <div class="grid-container">
+      <div class="grid-item">${this.addresses[0]}</div>
+      <div class="grid-item">${this.wordArray[0]}</div>
+      <div class="grid-item">${this.wordArray[1]}</div>
+      <div class="grid-item">${this.wordArray[2]}</div>
+      <div class="grid-item">${this.wordArray[3]}</div>
+      <div class="grid-item"><-sp</div>
+      <div class="grid-item">${this.addresses[4]}</div>
+      <div class="grid-item">${this.wordArray[4]}</div>
+      <div class="grid-item">${this.wordArray[5]}</div>
+      <div class="grid-item">${this.wordArray[6]}</div>
+      <div class="grid-item">${this.wordArray[7]}</div>
+      <div class="grid-item"></div>
+      <div class="grid-item">${this.addresses[8]}</div>
+      <div class="grid-item">${this.wordArray[8]}</div>
+      <div class="grid-item">${this.wordArray[9]}</div>
+      <div class="grid-item">${this.wordArray[10]}</div>
+      <div class="grid-item">${this.wordArray[11]}</div>
+      <div class="grid-item"></div>
+    </div>
+    </body>
+    <script src="${scriptUri}" nonce="${nonce}">
+    </html>`;
   }
 }
 
@@ -405,29 +435,72 @@ export class HelloWorldPanel {
 //       <script src="${scriptUri}" nonce="${nonce}">
 // 			</html>`;
 
+//------------------feature 3, repeatNum = stringlen-------------------
+// return `<!DOCTYPE html>
+// 			<html lang="en">
+// 			<head>
+// 				<meta charset="UTF-8">
+// 				<!--
+// 					Use a content security policy to only allow loading images from https or from our extension directory,
+// 					and only allow scripts that have a specific nonce.
+//         -->
+//         <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+//       webview.cspSource
+//     }; script-src 'nonce-${nonce}';">
+// 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+//         <link href="${stylesResetUri}" rel="stylesheet">
+//         <link href="${stylesMainUri}" rel="stylesheet">
+//         <script nonce="${nonce}">
+//         </script>
+//         <style>
+//         .grid-container {
+//           display: grid;
+//           grid-template-columns: 1fr repeat(${repeatNum}, 1fr);
+//           background-color: #2196F3;
+//           padding: 0px;
+//         }
+//         .grid-item {
+//           background-color: rgba(255, 255, 255, 1);
+//           color: rgba(0, 0, 0, 1);
+//           border: 1px solid rgba(0, 0, 0, 0.8);
+//           padding: 20px;
+//           font-size: 30px;
+//           text-align: center;
+//         }
+//         </style>
+// 			</head>
+//       <body>
+//       <div class="grid-container">
+//         <div class="grid-item">${this.addresses[0]}</div>
+//         <div class="grid-item">${this.stringArray[0]}</div>
+//         <div class="grid-item">${this.stringArray[1]}</div>
+//         <div class="grid-item">${this.stringArray[2]}</div>
+//         <div class="grid-item">${this.stringArray[3]}</div>
+//         <div class="grid-item">${this.stringArray[4]}</div>
+//         <div class="grid-item">${this.stringArray[5]}</div>
+//         <div class="grid-item">${this.stringArray[6]}</div>
+//         <div class="grid-item">${this.stringArray[7]}</div>
+//         <div class="grid-item">${this.stringArray[8]}</div>
+//         <div class="grid-item">${this.stringArray[9]}</div>
+//         <div class="grid-item">${this.stringArray[10]}</div>
+//         <div class="grid-item">${this.stringArray[11]}</div>
+//       </div>
+// 			</body>
+//       <script src="${scriptUri}" nonce="${nonce}">
+// 			</html>`;
 
 
     // ---------------- Working progress, trying to repeat  grid-items------------------
     // return `<!DOCTYPE html>
-		// 	<html lang="en">
-		// 	<head>
-		// 		<meta charset="UTF-8">
-		// 		<!--
-		// 			Use a content security policy to only allow loading images from https or from our extension directory,
-		// 			and only allow scripts that have a specific nonce.
-    //     -->
-    //     <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-    //   webview.cspSource
-    // }; script-src 'nonce-${nonce}';">
-		// 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-    //     <link href="${stylesResetUri}" rel="stylesheet">
-    //     <link href="${stylesMainUri}" rel="stylesheet">
-    //     <script nonce="${nonce}">
-    //     </script>
-    //     <style>
+    // <html>
+
+    // <head>
+    //   <meta charset="UTF-8">
+    //   <title>For Loop</title>
+    //   <style>
     //     .grid-container {
     //       display: grid;
-    //       grid-template-columns: 1fr repeat(${repeatNum}, 3fr), 1fr;
+    //       grid-template-columns: 1fr 3fr 1fr;
     //       background-color: #2196F3;
     //       padding: 0px;
     //     }
@@ -439,7 +512,31 @@ export class HelloWorldPanel {
     //       font-size: 30px;
     //       text-align: center;
     //     }
-    //     </style>
-		// 	</head>
-    //     <script src="${htmlUri}" nonce="${nonce}">
-		// 	</html>`;
+    //   </style>
+    // </head>
+    
+    // <body>
+    //   <div id="output_div"></div>
+    //   <script>
+    //     var addresses1 = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
+    //     var bytesArray = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
+    //     var outputHTML = "<div class='grid-container'>";
+    //     outputHTML += "<div class='grid-item'><b>Address</b></div>";
+    //     outputHTML += "<div class='grid-item'><b>Memory</b></div>";
+    //     outputHTML += "<div class='grid-item'><b>Index</b></div>";
+    //     for (var i = 0; i < addresses1.length; i++){
+    //       outputHTML += "<div class='grid-item'>";
+    //       outputHTML += addresses1[i];
+    //       outputHTML += "</div>";
+    //       outputHTML += "<div class='grid-item'>";
+    //       outputHTML += this.bytesArray[i];
+    //       outputHTML += "</div>";
+    //       outputHTML += "<div class='grid-item'>";
+    //       outputHTML += i + 1;
+    //       outputHTML += "</div>";
+    //     }
+    //     outputHTML += "</div>"
+    //     document.getElementById("output_div").innerHTML = outputHTML;
+    //   </script>
+    // </body>
+    // </html>`;
