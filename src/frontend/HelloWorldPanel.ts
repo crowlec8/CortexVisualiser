@@ -30,6 +30,7 @@ export class HelloWorldPanel {
   private stringLen: number;
   private spSave: number = 0;
   private spDiff: number;
+  private viewState: number = 4;
 
 
   public static createOrShow(extensionUri: vscode.Uri, address: string, length: string) {
@@ -154,36 +155,38 @@ export class HelloWorldPanel {
     const webview = this._panel.webview;
     const session = CortexDebugExtension.getActiveCDSession();
     
-    /* ---------uncomment for features 1-3--------------
-    session.customRequest('read-memory', { address: HelloWorldPanel.paramAdd, length: HelloWorldPanel.paramLen }).then((data) => {
-              this.bytes = data.bytes;
-              const address = parseHexOrDecInt(data.startAddress);
-              this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
-              this.stringLen = this.countStringLen();
-              this.decToAscii();
-              this._panel.webview.html = this._getHtmlForWebview(webview);
+    if(this.viewState == 4){
+      session.customRequest('read-registers').then((data) => {
+        const addressInt = parseHexOrDecInt(HelloWorldPanel.paramAdd);
+        const sp = parseHexOrDecInt(data[13].value);
+        if(this.spSave == addressInt){
+          this.spDiff = this.spSave - sp;
+        }
+        this.spSave = sp;
+        const dataLength = parseInt(HelloWorldPanel.paramLen, 10);
+        const startAdd = addressInt - dataLength;
+        session.customRequest('read-memory', { address: startAdd, length: HelloWorldPanel.paramLen }).then((data) => {
+                this.bytes = data.bytes;
+                const address = parseHexOrDecInt(data.startAddress);
+                this.getAddresses(address, 4, dataLength);
+                this.stringLen = this.countStringLen();
+                this.decToAscii();
+                this._panel.webview.html = this._getHtmlForWebview(webview);
+            });
           });
-    */
+    }
+    else{
+      session.customRequest('read-memory', { address: HelloWorldPanel.paramAdd, length: HelloWorldPanel.paramLen }).then((data) => {
+                this.bytes = data.bytes;
+                const address = parseHexOrDecInt(data.startAddress);
+                this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
+                this.stringLen = this.countStringLen();
+                this.decToAscii();
+                this._panel.webview.html = this._getHtmlForWebview(webview);
+            });
+    }        
+    
 
-
-    session.customRequest('read-registers').then((data) => {
-      const addressInt = parseHexOrDecInt(HelloWorldPanel.paramAdd);
-      const sp = data[13].value;
-      if(this.spSave == addressInt){
-        this.spDiff = this.spSave - sp;
-      }
-      this.spSave = sp;
-      const dataLength = parseInt(HelloWorldPanel.paramLen, 10);
-      const startAdd = addressInt - dataLength;
-      session.customRequest('read-memory', { address: startAdd, length: HelloWorldPanel.paramLen }).then((data) => {
-              this.bytes = data.bytes;
-              const address = parseHexOrDecInt(data.startAddress);
-              this.getAddresses(address, 4, dataLength);
-              this.stringLen = this.countStringLen();
-              this.decToAscii();
-              this._panel.webview.html = this._getHtmlForWebview(webview);
-          });
-        });
     webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         
@@ -244,9 +247,95 @@ export class HelloWorldPanel {
 
     // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
-    const repeatNum = this.spDiff / 4;
+    let repeatNum = 1;
+    switch(this.viewState) { 
+      case 1: { 
+         repeatNum = 1;
+         break; 
+      }
+      case 2: { 
+        repeatNum = 3;
+        break; 
+      }
+      case 3: { 
+        repeatNum = this.stringLen; 
+        break; 
+      }  
+      case 4: {
+        repeatNum = this.spDiff/4;
+        break;
+      }
+      default: { 
+        repeatNum = 1; 
+         break; 
+      } 
+    }
+    var htmlBlank = `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <!--
+        Use a content security policy to only allow loading images from https or from our extension directory,
+        and only allow scripts that have a specific nonce.
+      -->
+      <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+    webview.cspSource
+    }; script-src 'nonce-${nonce}';">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="${stylesResetUri}" rel="stylesheet">
+      <link href="${stylesMainUri}" rel="stylesheet">
+      <script nonce="${nonce}">
+      </script>
+      <style>
+      .grid-container {
+        display: grid;
+        grid-template-columns: 1fr repeat(${repeatNum}, 3fr) 1fr;
+        background-color: #2196F3;
+        padding: 0px;
+      }
+      .grid-item {
+        background-color: rgba(255, 255, 255, 1);
+        color: rgba(0, 0, 0, 1);
+        border: 1px solid rgba(0, 0, 0, 0.8);
+        padding: 20px;
+        font-size: 30px;
+        text-align: center;
+      }
+      .button-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        background-color: #2196F3;
+        padding: 0px;
+      }
+      .button-item {
+        background-color: rgba(0, 0, 255, 1);
+        color: rgba(0, 0, 0, 1);
+        border: 1px solid rgba(0, 0, 0, 0.8);
+        padding: 20px;
+        font-size: 30px;
+        text-align: center;
+      }
+      </style>
+    </head>
+    <body>
+    <div class="button-container">
+      <button onclick="myFunction()" class="button-item">1D</button>
+      <button onclick="view2D()" class="button-item">2D</button>
+      <button onclick="viewAscii()" class="button-item">Ascii</button>
+      <button onclick="viewStack()" class="button-item">Stack</button>
+    </div>
+    <div id="demo" class="grid-container">Just Some Help here</div>
+    <script>
+    function myFunction() {
+      document.getElementById("demo").innerHTML = "YOU CLICKED ME!";
+    }
+    </script>
+    </body>
+    <script src="${scriptUri}" nonce="${nonce}">
+    </html>`
+    
 
-    return `<!DOCTYPE html>
+    var html1D = `<!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
@@ -281,262 +370,211 @@ export class HelloWorldPanel {
     </head>
     <body>
     <div class="grid-container">
-      <div class="grid-item">${this.addresses[0]}</div>
-      <div class="grid-item">${this.wordArray[0]}</div>
-      <div class="grid-item">${this.wordArray[1]}</div>
-      <div class="grid-item">${this.wordArray[2]}</div>
-      <div class="grid-item">${this.wordArray[3]}</div>
-      <div class="grid-item"><-sp</div>
-      <div class="grid-item">${this.addresses[4]}</div>
-      <div class="grid-item">${this.wordArray[4]}</div>
-      <div class="grid-item">${this.wordArray[5]}</div>
-      <div class="grid-item">${this.wordArray[6]}</div>
-      <div class="grid-item">${this.wordArray[7]}</div>
-      <div class="grid-item"></div>
-      <div class="grid-item">${this.addresses[8]}</div>
-      <div class="grid-item">${this.wordArray[8]}</div>
-      <div class="grid-item">${this.wordArray[9]}</div>
-      <div class="grid-item">${this.wordArray[10]}</div>
-      <div class="grid-item">${this.wordArray[11]}</div>
-      <div class="grid-item"></div>
+      <div class="grid-item"><b>address</b></div>
+      <div class="grid-item"><b>memory</b></div>
+      <div class="grid-item"><b>index</b></div>`
+
+    for(var i = 0; i < this.addresses.length; i++){
+      html1D += `
+      <div class="grid-item">` + this.addresses[i] + `</div>
+      <div class="grid-item">` + this.wordArray[i] + `</div>
+      <div class="grid-item">` + i + `</div>
+      `
+    }
+    html1D += `
     </div>
     </body>
     <script src="${scriptUri}" nonce="${nonce}">
-    </html>`;
+    </html>`
+
+
+    var html2D = `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<!--
+					Use a content security policy to only allow loading images from https or from our extension directory,
+					and only allow scripts that have a specific nonce.
+        -->
+        <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+      webview.cspSource
+    }; script-src 'nonce-${nonce}';">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="${stylesResetUri}" rel="stylesheet">
+        <link href="${stylesMainUri}" rel="stylesheet">
+        <script nonce="${nonce}">
+        </script>
+        <style>
+        .grid-container {
+          display: grid;
+          grid-template-columns: 1fr repeat(${repeatNum}, 3fr);
+          background-color: #2196F3;
+          padding: 0px;
+        }
+        .grid-item {
+          background-color: rgba(255, 255, 255, 1);
+          color: rgba(0, 0, 0, 1);
+          border: 1px solid rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          font-size: 30px;
+          text-align: center;
+        }
+        </style>
+			</head>
+      <body>
+      <div class="grid-container">
+        <div class="grid-item"><b>address</b></div>`
+      for(var i = 0; i < repeatNum; i++){
+        html2D += 
+        `<div class="grid-item">+4</div>`
+      }
+      for(var i = 0; i < this.addresses.length; i++){
+        if(i == 0 || i%3 == 0){
+          html2D += `<div class="grid-item">${this.addresses[i]}</div>`
+        }
+        html2D +=
+        `<div class="grid-item">${this.wordArray[i]}</div>`
+      }
+      html2D += 
+      `</div>
+			</body>
+      <script src="${scriptUri}" nonce="${nonce}">
+			</html>`;
+    
+    
+
+    var htmlAscii = `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<!--
+					Use a content security policy to only allow loading images from https or from our extension directory,
+					and only allow scripts that have a specific nonce.
+        -->
+        <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+      webview.cspSource
+    }; script-src 'nonce-${nonce}';">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="${stylesResetUri}" rel="stylesheet">
+        <link href="${stylesMainUri}" rel="stylesheet">
+        <script nonce="${nonce}">
+        </script>
+        <style>
+        .grid-container {
+          display: grid;
+          grid-template-columns: 1fr repeat(${repeatNum}, 1fr);
+          background-color: #2196F3;
+          padding: 0px;
+        }
+        .grid-item {
+          background-color: rgba(255, 255, 255, 1);
+          color: rgba(0, 0, 0, 1);
+          border: 1px solid rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          font-size: 30px;
+          text-align: center;
+        }
+        </style>
+			</head>
+      <body>
+      <div class="grid-container">
+        <div class="grid-item">${this.addresses[0]}</div>`
+      for(var i = 0; i < this.stringLen; i++){
+        htmlAscii += `
+        <div class="grid-item">${this.stringArray[i]}</div>`
+      }
+      htmlAscii += `
+      </div>
+			</body>
+      <script src="${scriptUri}" nonce="${nonce}">
+			</html>`
+
+
+
+    var htmlStack = `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <!--
+          Use a content security policy to only allow loading images from https or from our extension directory,
+          and only allow scripts that have a specific nonce.
+        -->
+        <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
+      webview.cspSource
+      }; script-src 'nonce-${nonce}';">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="${stylesResetUri}" rel="stylesheet">
+        <link href="${stylesMainUri}" rel="stylesheet">
+        <script nonce="${nonce}">
+        </script>
+        <style>
+        .grid-container {
+          display: grid;
+          grid-template-columns: 1fr repeat(${repeatNum}, 3fr) 1fr;
+          background-color: #2196F3;
+          padding: 0px;
+        }
+        .grid-item {
+          background-color: rgba(255, 255, 255, 1);
+          color: rgba(0, 0, 0, 1);
+          border: 1px solid rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          font-size: 30px;
+          text-align: center;
+        }
+        </style>
+      </head>
+      <body>
+      <div class="grid-container">`
+      let stackAdd = 0;
+      for(var i = 0; i < this.wordArray.length; i++){
+        if(i == 0 || i%4 == 0){
+          htmlStack += `<div class="grid-item">${this.addresses[i]}</div>`
+          stackAdd = parseHexOrDecInt(this.addresses[i]);
+        }
+        htmlStack += `
+        <div class="grid-item">${this.wordArray[i]}</div>`
+        if(i != 0 && i%4 == 3){
+          if(stackAdd == this.spSave){
+            htmlStack += `<div class="grid-item"><-sp</div>`
+          }
+          else{
+            htmlStack += `<div class="grid-item"></div>`
+          }
+        }
+      }
+      htmlStack += `
+      </div>
+      </body>
+      <script src="${scriptUri}" nonce="${nonce}">
+      </html>`
+
+    switch(this.viewState) { 
+      case 0: { 
+         return htmlBlank;
+         break; 
+      } 
+      case 1: { 
+         return html1D; 
+         break; 
+      }
+      case 2: { 
+        repeatNum = 3;
+        return html2D; 
+        break; 
+      }
+      case 3: { 
+        return htmlAscii; 
+        break; 
+      }  
+      case 4: { 
+        return htmlStack; 
+        break; 
+      } 
+      default: { 
+        return htmlBlank; 
+         break; 
+      } 
+    } 
   }
 }
-
-//---------------------Feature 1 working when repeatNum = 1-----------
-// return `<!DOCTYPE html>
-// <html lang="en">
-// <head>
-//   <meta charset="UTF-8">
-//   <!--
-//     Use a content security policy to only allow loading images from https or from our extension directory,
-//     and only allow scripts that have a specific nonce.
-//   -->
-//   <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-// webview.cspSource
-// }; script-src 'nonce-${nonce}';">
-//   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-//   <link href="${stylesResetUri}" rel="stylesheet">
-//   <link href="${stylesMainUri}" rel="stylesheet">
-//   <script nonce="${nonce}">
-//   </script>
-//   <style>
-//   .grid-container {
-//     display: grid;
-//     grid-template-columns: 1fr repeat(${repeatNum}, 3fr) 1fr;
-//     background-color: #2196F3;
-//     padding: 0px;
-//   }
-//   .grid-item {
-//     background-color: rgba(255, 255, 255, 1);
-//     color: rgba(0, 0, 0, 1);
-//     border: 1px solid rgba(0, 0, 0, 0.8);
-//     padding: 20px;
-//     font-size: 30px;
-//     text-align: center;
-//   }
-//   </style>
-// </head>
-// <body>
-// <div class="grid-container">
-//   <div class="grid-item"><b>address</b></div>
-//   <div class="grid-item"><b>memory</b></div>
-//   <div class="grid-item"><b>index</b></div>
-//   <div class="grid-item">${this.addresses[0]}</div>
-//   <div class="grid-item">${this.wordArray[0]}</div>
-//   <div class="grid-item">0</div>
-//   <div class="grid-item">${this.addresses[1]}</div>
-//   <div class="grid-item">${this.wordArray[1]}</div>
-//   <div class="grid-item">1</div>
-//   <div class="grid-item">${this.addresses[2]}</div>
-//   <div class="grid-item">${this.wordArray[2]}</div>
-//   <div class="grid-item">2</div>
-//   <div class="grid-item">${this.addresses[3]}</div>
-//   <div class="grid-item">${this.wordArray[3]}</div>
-//   <div class="grid-item">3</div>
-//   <div class="grid-item">${this.addresses[4]}</div>
-//   <div class="grid-item">${this.wordArray[4]}</div>
-//   <div class="grid-item">4</div>
-//   <div class="grid-item">${this.addresses[5]}</div>
-//   <div class="grid-item">${this.wordArray[5]}</div>
-//   <div class="grid-item">5</div>
-//   <div class="grid-item">${this.addresses[6]}</div>
-//   <div class="grid-item">${this.wordArray[6]}</div>
-//   <div class="grid-item">6</div>
-//   <div class="grid-item">${this.addresses[7]}</div>
-//   <div class="grid-item">${this.wordArray[7]}</div>
-//   <div class="grid-item">7</div>
-//   <div class="grid-item">${this.addresses[8]}</div>
-//   <div class="grid-item">${this.wordArray[8]}</div>
-//   <div class="grid-item">8</div>
-//   <div class="grid-item">${this.addresses[9]}</div>
-//   <div class="grid-item">${this.wordArray[9]}</div>
-//   <div class="grid-item">9</div>
-// </div>
-// </body>
-// <script src="${scriptUri}" nonce="${nonce}">
-// </html>`
-
-
-
-//--------------feature 2 shell, set repeatNum to number for columns wanted---------- 
-// return `<!DOCTYPE html>
-// 			<html lang="en">
-// 			<head>
-// 				<meta charset="UTF-8">
-// 				<!--
-// 					Use a content security policy to only allow loading images from https or from our extension directory,
-// 					and only allow scripts that have a specific nonce.
-//         -->
-//         <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-//       webview.cspSource
-//     }; script-src 'nonce-${nonce}';">
-// 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-//         <link href="${stylesResetUri}" rel="stylesheet">
-//         <link href="${stylesMainUri}" rel="stylesheet">
-//         <script nonce="${nonce}">
-//         </script>
-//         <style>
-//         .grid-container {
-//           display: grid;
-//           grid-template-columns: 1fr repeat(${repeatNum}, 3fr);
-//           background-color: #2196F3;
-//           padding: 0px;
-//         }
-//         .grid-item {
-//           background-color: rgba(255, 255, 255, 1);
-//           color: rgba(0, 0, 0, 1);
-//           border: 1px solid rgba(0, 0, 0, 0.8);
-//           padding: 20px;
-//           font-size: 30px;
-//           text-align: center;
-//         }
-//         </style>
-// 			</head>
-//       <body>
-//       <div class="grid-container">
-//         <div class="grid-item"><b>address</b></div>
-//         <div class="grid-item">+4</div>
-//         <div class="grid-item">+4</div>
-//         <div class="grid-item">+4</div>
-//         <div class="grid-item">${this.addresses[0]}</div>
-//         <div class="grid-item">${this.wordArray[0]}</div>
-//         <div class="grid-item">${this.wordArray[1]}</div>
-//         <div class="grid-item">${this.wordArray[2]}</div>
-//         <div class="grid-item">${this.addresses[3]}</div>
-//         <div class="grid-item">${this.wordArray[3]}</div>
-//         <div class="grid-item">${this.wordArray[4]}</div>
-//         <div class="grid-item">${this.wordArray[5]}</div>
-//       </div>
-// 			</body>
-//       <script src="${scriptUri}" nonce="${nonce}">
-// 			</html>`;
-
-//------------------feature 3, repeatNum = stringlen-------------------
-// return `<!DOCTYPE html>
-// 			<html lang="en">
-// 			<head>
-// 				<meta charset="UTF-8">
-// 				<!--
-// 					Use a content security policy to only allow loading images from https or from our extension directory,
-// 					and only allow scripts that have a specific nonce.
-//         -->
-//         <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-//       webview.cspSource
-//     }; script-src 'nonce-${nonce}';">
-// 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-//         <link href="${stylesResetUri}" rel="stylesheet">
-//         <link href="${stylesMainUri}" rel="stylesheet">
-//         <script nonce="${nonce}">
-//         </script>
-//         <style>
-//         .grid-container {
-//           display: grid;
-//           grid-template-columns: 1fr repeat(${repeatNum}, 1fr);
-//           background-color: #2196F3;
-//           padding: 0px;
-//         }
-//         .grid-item {
-//           background-color: rgba(255, 255, 255, 1);
-//           color: rgba(0, 0, 0, 1);
-//           border: 1px solid rgba(0, 0, 0, 0.8);
-//           padding: 20px;
-//           font-size: 30px;
-//           text-align: center;
-//         }
-//         </style>
-// 			</head>
-//       <body>
-//       <div class="grid-container">
-//         <div class="grid-item">${this.addresses[0]}</div>
-//         <div class="grid-item">${this.stringArray[0]}</div>
-//         <div class="grid-item">${this.stringArray[1]}</div>
-//         <div class="grid-item">${this.stringArray[2]}</div>
-//         <div class="grid-item">${this.stringArray[3]}</div>
-//         <div class="grid-item">${this.stringArray[4]}</div>
-//         <div class="grid-item">${this.stringArray[5]}</div>
-//         <div class="grid-item">${this.stringArray[6]}</div>
-//         <div class="grid-item">${this.stringArray[7]}</div>
-//         <div class="grid-item">${this.stringArray[8]}</div>
-//         <div class="grid-item">${this.stringArray[9]}</div>
-//         <div class="grid-item">${this.stringArray[10]}</div>
-//         <div class="grid-item">${this.stringArray[11]}</div>
-//       </div>
-// 			</body>
-//       <script src="${scriptUri}" nonce="${nonce}">
-// 			</html>`;
-
-
-    // ---------------- Working progress, trying to repeat  grid-items------------------
-    // return `<!DOCTYPE html>
-    // <html>
-
-    // <head>
-    //   <meta charset="UTF-8">
-    //   <title>For Loop</title>
-    //   <style>
-    //     .grid-container {
-    //       display: grid;
-    //       grid-template-columns: 1fr 3fr 1fr;
-    //       background-color: #2196F3;
-    //       padding: 0px;
-    //     }
-    //     .grid-item {
-    //       background-color: rgba(255, 255, 255, 1);
-    //       color: rgba(0, 0, 0, 1);
-    //       border: 1px solid rgba(0, 0, 0, 0.8);
-    //       padding: 20px;
-    //       font-size: 30px;
-    //       text-align: center;
-    //     }
-    //   </style>
-    // </head>
-    
-    // <body>
-    //   <div id="output_div"></div>
-    //   <script>
-    //     var addresses1 = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
-    //     var bytesArray = ["0x20000000","0x20000004","0x20000008","0x2000000c","0x20000010",]
-    //     var outputHTML = "<div class='grid-container'>";
-    //     outputHTML += "<div class='grid-item'><b>Address</b></div>";
-    //     outputHTML += "<div class='grid-item'><b>Memory</b></div>";
-    //     outputHTML += "<div class='grid-item'><b>Index</b></div>";
-    //     for (var i = 0; i < addresses1.length; i++){
-    //       outputHTML += "<div class='grid-item'>";
-    //       outputHTML += addresses1[i];
-    //       outputHTML += "</div>";
-    //       outputHTML += "<div class='grid-item'>";
-    //       outputHTML += this.bytesArray[i];
-    //       outputHTML += "</div>";
-    //       outputHTML += "<div class='grid-item'>";
-    //       outputHTML += i + 1;
-    //       outputHTML += "</div>";
-    //     }
-    //     outputHTML += "</div>"
-    //     document.getElementById("output_div").innerHTML = outputHTML;
-    //   </script>
-    // </body>
-    // </html>`;
