@@ -1,9 +1,7 @@
 import * as vscode from "vscode";
 import { TreeItem } from "vscode";
 import { getNonce } from "./getNonce";
-import { RegisterNode, RegisterValue } from "./views/nodes/registernode";
 import { CortexDebugExtension } from './extension';
-import internal = require("stream");
 import { parseHexOrDecInt } from "../common";
 import { hexFormat } from './utils';
 
@@ -23,7 +21,7 @@ export class HelloWorldPanel {
   public wsFolderPath: string;
   private bytes: number;
   private stringArray: string[] = [];
-  private wordArray: number[] = [];
+  private memArray: number[] = [];
   private addresses: string[] = [];
   public static paramAdd: string;
   public static paramLen: string;
@@ -120,19 +118,6 @@ export class HelloWorldPanel {
     // Listen for when the panel is disposed
     // This happens when the user closes the panel or when the panel is closed programatically
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-    // // Handle messages from the webview
-    // this._panel.webview.onDidReceiveMessage(
-    //   (message) => {
-    //     switch (message.command) {
-    //       case "alert":
-    //         vscode.window.showErrorMessage(message.text);
-    //         return;
-    //     }
-    //   },
-    //   null,
-    //   this._disposables
-    // );
   }
 
   public dispose() {
@@ -154,7 +139,7 @@ export class HelloWorldPanel {
     for(let i = 0; i < length/gap; i ++){
       let j = i * gap;
       this.addresses[i] = hexFormat((startAddress + j), 8, true);
-      this.wordArray[i] = this.bytes[j];
+      this.memArray[i] = this.bytes[j];
     }
   }
 
@@ -244,27 +229,11 @@ export class HelloWorldPanel {
           vscode.window.showErrorMessage(data.value);
           break;
         }
-        // case "tokens": {
-        //   await Util.globalState.update(accessTokenKey, data.accessToken);
-        //   await Util.globalState.update(refreshTokenKey, data.refreshToken);
-        //   break;
-        // }
       }
     });
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {
-    // // And the uri we use to load this script in the webview
-    const htmlPath = vscode.Uri.joinPath(
-      this._extensionUri,
-      "src/media",
-      "view.html"
-    );
-    const scriptPath = vscode.Uri.joinPath(
-      this._extensionUri,
-      "src/media",
-      "helper.js"
-    );
     // Local path to css styles
     const styleResetPath = vscode.Uri.joinPath(
       this._extensionUri,
@@ -279,13 +248,7 @@ export class HelloWorldPanel {
     // Uri to load styles into webview
     const stylesResetUri = webview.asWebviewUri(styleResetPath);
     const stylesMainUri = webview.asWebviewUri(stylesPathMainPath);
-    const scriptUri = webview.asWebviewUri(scriptPath);
-    const htmlUri = webview.asWebviewUri(htmlPath);
-    // const cssUri = webview.asWebviewUri(
-    //   vscode.Uri.joinPath(this._extensionUri, "out", "compiled/swiper.css")
-    // );
 
-    // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
     let repeatNum = 1;
     switch(HelloWorldPanel.viewState) { 
@@ -353,14 +316,13 @@ export class HelloWorldPanel {
     for(var i = 0; i < this.addresses.length; i++){
       html1D += `
       <div class="grid-item">${this.addresses[i]}</div>
-      <div class="grid-item">${this.wordArray[i]}</div>
+      <div class="grid-item">${this.memArray[i]}</div>
       <div class="grid-item">${i}</div>
       `
     }
     html1D += `
     </div>
     </body>
-    <script src="${scriptUri}" nonce="${nonce}">
     </html>`
 
 
@@ -409,12 +371,11 @@ export class HelloWorldPanel {
           html2D += `<div class="grid-item">${this.addresses[i]}</div>`
         }
         html2D +=
-        `<div class="grid-item">${this.wordArray[i]}</div>`
+        `<div class="grid-item">${this.memArray[i]}</div>`
       }
       html2D += 
       `</div>
 			</body>
-      <script src="${scriptUri}" nonce="${nonce}">
 			</html>`;
     
     
@@ -462,7 +423,6 @@ export class HelloWorldPanel {
       htmlAscii += `
       </div>
 			</body>
-      <script src="${scriptUri}" nonce="${nonce}">
 			</html>`
 
 
@@ -503,13 +463,13 @@ export class HelloWorldPanel {
       <body>
       <div class="grid-container">`
       let stackAdd = 0;
-      for(var i = 0; i < this.wordArray.length; i++){
+      for(var i = 0; i < this.memArray.length; i++){
         if(i == 0 || i%repeatNum == 0){
           htmlStack += `<div class="grid-item">${this.addresses[i]}</div>`
           stackAdd = parseHexOrDecInt(this.addresses[i]);
         }
         htmlStack += `
-        <div class="grid-item">${this.wordArray[i]}</div>`
+        <div class="grid-item">${this.memArray[i]}</div>`
         if(i != 0 && i%repeatNum == repeatNum-1){
           if(stackAdd == this.spSave){
             htmlStack += `<div class="grid-item"><-sp</div>`
@@ -522,7 +482,6 @@ export class HelloWorldPanel {
       htmlStack += `
       </div>
       </body>
-      <script src="${scriptUri}" nonce="${nonce}">
       </html>`
 
     switch(HelloWorldPanel.viewState) { 
