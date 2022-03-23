@@ -27,16 +27,46 @@ export class HelloWorldPanel {
   private addresses: string[] = [];
   public static paramAdd: string;
   public static paramLen: string;
+  public static paramDim: string[];
+  public static paramSize: string;
+  public static divider: number;
   private stringLen: number;
   private spSave: number = 0;
   private spDiff: number;
-  private viewState: number = 4;
+  private static viewState: number = 0;
 
 
-  public static createOrShow(extensionUri: vscode.Uri, address: string, length: string) {
+
+  public static checkView(view: string){
+    if(view == '1d'){
+      this.viewState = 1;
+    }
+    else if(view == '2d'){
+      this.viewState = 2;
+    }
+    else if(view == 'ascii'){
+      this.viewState = 3;
+    }
+    else if(view == 'stack'){
+      this.viewState = 4;
+    }
+  }
+
+  public static createOrShow(extensionUri: vscode.Uri, address: string, length: string, view: string, memSize: string) {
     HelloWorldPanel.paramAdd = address;
-    HelloWorldPanel.paramLen = length;
-    const column = vscode.window.activeTextEditor
+    HelloWorldPanel.checkView(view);
+    HelloWorldPanel.paramSize = memSize;
+    this.divider = this.getDivider();
+    if(this.viewState == 2){
+      var splitted = length.split('x');
+      HelloWorldPanel.paramDim = splitted;
+      var lengthInt = parseInt(splitted[0], 10) * parseInt(splitted[1], 10) * this.divider;
+      HelloWorldPanel.paramLen = lengthInt.toString();
+    }
+    else{
+      HelloWorldPanel.paramLen = length;
+    }
+      const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
 
@@ -151,11 +181,23 @@ export class HelloWorldPanel {
     }
   }
 
+  public static getDivider(){
+    if(HelloWorldPanel.paramSize == 'word'){
+      return 4;
+    }
+    else if(HelloWorldPanel.paramSize == 'half-word'){
+      return 2;
+    }
+    else{
+      return 1;
+    }
+  }
+
   public async _update() {
     const webview = this._panel.webview;
     const session = CortexDebugExtension.getActiveCDSession();
     
-    if(this.viewState == 4){
+    if(HelloWorldPanel.viewState == 4){
       session.customRequest('read-registers').then((data) => {
         const addressInt = parseHexOrDecInt(HelloWorldPanel.paramAdd);
         const sp = parseHexOrDecInt(data[13].value);
@@ -168,9 +210,7 @@ export class HelloWorldPanel {
         session.customRequest('read-memory', { address: startAdd, length: HelloWorldPanel.paramLen }).then((data) => {
                 this.bytes = data.bytes;
                 const address = parseHexOrDecInt(data.startAddress);
-                this.getAddresses(address, 4, dataLength);
-                this.stringLen = this.countStringLen();
-                this.decToAscii();
+                this.getAddresses(address, HelloWorldPanel.divider, dataLength);
                 this._panel.webview.html = this._getHtmlForWebview(webview);
             });
           });
@@ -179,7 +219,7 @@ export class HelloWorldPanel {
       session.customRequest('read-memory', { address: HelloWorldPanel.paramAdd, length: HelloWorldPanel.paramLen }).then((data) => {
                 this.bytes = data.bytes;
                 const address = parseHexOrDecInt(data.startAddress);
-                this.getAddresses(address, 4, parseInt(HelloWorldPanel.paramLen, 10));
+                this.getAddresses(address, HelloWorldPanel.divider, parseInt(HelloWorldPanel.paramLen, 10));
                 this.stringLen = this.countStringLen();
                 this.decToAscii();
                 this._panel.webview.html = this._getHtmlForWebview(webview);
@@ -248,13 +288,13 @@ export class HelloWorldPanel {
     // Use a nonce to only allow specific scripts to be run
     const nonce = getNonce();
     let repeatNum = 1;
-    switch(this.viewState) { 
+    switch(HelloWorldPanel.viewState) { 
       case 1: { 
          repeatNum = 1;
          break; 
       }
       case 2: { 
-        repeatNum = 3;
+        repeatNum = parseInt(HelloWorldPanel.paramDim[1], 10);
         break; 
       }
       case 3: { 
@@ -262,7 +302,7 @@ export class HelloWorldPanel {
         break; 
       }  
       case 4: {
-        repeatNum = this.spDiff/4;
+        repeatNum = this.spDiff/HelloWorldPanel.divider;
         break;
       }
       default: { 
@@ -270,71 +310,7 @@ export class HelloWorldPanel {
          break; 
       } 
     }
-    var htmlBlank = `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <!--
-        Use a content security policy to only allow loading images from https or from our extension directory,
-        and only allow scripts that have a specific nonce.
-      -->
-      <meta http-equiv="Content-Security-Policy" content="img-src https: data:; style-src 'unsafe-inline' ${
-    webview.cspSource
-    }; script-src 'nonce-${nonce}';">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link href="${stylesResetUri}" rel="stylesheet">
-      <link href="${stylesMainUri}" rel="stylesheet">
-      <script nonce="${nonce}">
-      </script>
-      <style>
-      .grid-container {
-        display: grid;
-        grid-template-columns: 1fr repeat(${repeatNum}, 3fr) 1fr;
-        background-color: #2196F3;
-        padding: 0px;
-      }
-      .grid-item {
-        background-color: rgba(255, 255, 255, 1);
-        color: rgba(0, 0, 0, 1);
-        border: 1px solid rgba(0, 0, 0, 0.8);
-        padding: 20px;
-        font-size: 30px;
-        text-align: center;
-      }
-      .button-container {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        background-color: #2196F3;
-        padding: 0px;
-      }
-      .button-item {
-        background-color: rgba(0, 0, 255, 1);
-        color: rgba(0, 0, 0, 1);
-        border: 1px solid rgba(0, 0, 0, 0.8);
-        padding: 20px;
-        font-size: 30px;
-        text-align: center;
-      }
-      </style>
-    </head>
-    <body>
-    <div class="button-container">
-      <button onclick="myFunction()" class="button-item">1D</button>
-      <button onclick="view2D()" class="button-item">2D</button>
-      <button onclick="viewAscii()" class="button-item">Ascii</button>
-      <button onclick="viewStack()" class="button-item">Stack</button>
-    </div>
-    <div id="demo" class="grid-container">Just Some Help here</div>
-    <script>
-    function myFunction() {
-      document.getElementById("demo").innerHTML = "YOU CLICKED ME!";
-    }
-    </script>
-    </body>
-    <script src="${scriptUri}" nonce="${nonce}">
-    </html>`
     
-
     var html1D = `<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -376,9 +352,9 @@ export class HelloWorldPanel {
 
     for(var i = 0; i < this.addresses.length; i++){
       html1D += `
-      <div class="grid-item">` + this.addresses[i] + `</div>
-      <div class="grid-item">` + this.wordArray[i] + `</div>
-      <div class="grid-item">` + i + `</div>
+      <div class="grid-item">${this.addresses[i]}</div>
+      <div class="grid-item">${this.wordArray[i]}</div>
+      <div class="grid-item">${i}</div>
       `
     }
     html1D += `
@@ -426,10 +402,10 @@ export class HelloWorldPanel {
         <div class="grid-item"><b>address</b></div>`
       for(var i = 0; i < repeatNum; i++){
         html2D += 
-        `<div class="grid-item">+4</div>`
+        `<div class="grid-item">+${HelloWorldPanel.divider}</div>`
       }
       for(var i = 0; i < this.addresses.length; i++){
-        if(i == 0 || i%3 == 0){
+        if(i == 0 || i % repeatNum == 0){
           html2D += `<div class="grid-item">${this.addresses[i]}</div>`
         }
         html2D +=
@@ -528,13 +504,13 @@ export class HelloWorldPanel {
       <div class="grid-container">`
       let stackAdd = 0;
       for(var i = 0; i < this.wordArray.length; i++){
-        if(i == 0 || i%4 == 0){
+        if(i == 0 || i%repeatNum == 0){
           htmlStack += `<div class="grid-item">${this.addresses[i]}</div>`
           stackAdd = parseHexOrDecInt(this.addresses[i]);
         }
         htmlStack += `
         <div class="grid-item">${this.wordArray[i]}</div>`
-        if(i != 0 && i%4 == 3){
+        if(i != 0 && i%repeatNum == repeatNum-1){
           if(stackAdd == this.spSave){
             htmlStack += `<div class="grid-item"><-sp</div>`
           }
@@ -549,11 +525,7 @@ export class HelloWorldPanel {
       <script src="${scriptUri}" nonce="${nonce}">
       </html>`
 
-    switch(this.viewState) { 
-      case 0: { 
-         return htmlBlank;
-         break; 
-      } 
+    switch(HelloWorldPanel.viewState) { 
       case 1: { 
          return html1D; 
          break; 
@@ -572,7 +544,7 @@ export class HelloWorldPanel {
         break; 
       } 
       default: { 
-        return htmlBlank; 
+        return html1D; 
          break; 
       } 
     } 

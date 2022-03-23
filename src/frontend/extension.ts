@@ -150,31 +150,79 @@ export class CortexDebugExtension {
 
     private visuals(){
         vscode.window.showInputBox({
-            placeHolder: 'Enter a valid C/gdb expression. Use 0x prefix for hexadecimal numbers',
+            placeHolder: 'Choose the view you wish to look at i.e. 1D, 2D, Ascii or Stack',
             ignoreFocusOut: true,
-            prompt: 'Memory Address'
+            prompt: 'View Type'
         }).then(
-            (address) => {
-                address = address.trim();
-                if (!this.validateAddress(address)) {
-                    vscode.window.showErrorMessage('Invalid memory address entered');
-                    Reporting.sendEvent('Examine Memory', 'Invalid Address', address);
+            (view) => {
+                view = view.trim();
+                view = view.toLowerCase();
+                if (!this.validateView(view)) {
+                    vscode.window.showErrorMessage('Invalid view entered, enter in one of 1D, 2D, Ascii or Stack');
+                    Reporting.sendEvent('Examine Memory', 'Invalid View', view);
                     return;
                 }
-
                 vscode.window.showInputBox({
-                    placeHolder: 'Enter a constant value. Prefix with 0x for hexadecimal format.',
+                    placeHolder: 'Set the memory view size i.e. Byte, half-word, word',
                     ignoreFocusOut: true,
-                    prompt: 'Length'
+                    prompt: 'Memory View'
                 }).then(
-                    (length) => {
-                        length = length.trim();
-                        if (!this.validateValue(length)) {
-                            vscode.window.showErrorMessage('Invalid length entered');
-                            Reporting.sendEvent('Examine Memory', 'Invalid Length', length);
+                    (size) => {
+                        size = size.trim();
+                        size = size.toLowerCase();
+                        if (!this.validateSize(size)) {
+                            vscode.window.showErrorMessage('Invalid size entered, enter in one of Byte, Half-word or word');
+                            Reporting.sendEvent('Examine Memory', 'Invalid Size', size);
                             return;
                         }
-                        HelloWorldPanel.createOrShow(this.context.extensionUri, address, length);
+                        vscode.window.showInputBox({
+                            placeHolder: 'Enter a valid C/gdb expression. Use 0x prefix for hexadecimal numbers',
+                            ignoreFocusOut: true,
+                            prompt: 'Memory Address'
+                        }).then(
+                            (address) => {
+                                address = address.trim();
+                                if (!this.validateAddress(address)) {
+                                    vscode.window.showErrorMessage('Invalid memory address entered');
+                                    Reporting.sendEvent('Examine Memory', 'Invalid Address', address);
+                                    return;
+                                }
+                                if(view == '2d'){
+                                    vscode.window.showInputBox({
+                                        placeHolder: 'Enter Dimentions for 2D memory. e.g. 2x3',
+                                        ignoreFocusOut: true,
+                                        prompt: 'Length'
+                                    }).then(
+                                        (dimensions) => {
+                                            dimensions = dimensions.trim();
+                                            if (!this.validateDimentions(dimensions)) {
+                                                vscode.window.showErrorMessage('Invalid Dimensions entered');
+                                                Reporting.sendEvent('Examine Memory', 'Invalid Dimensions', dimensions);
+                                                return;
+                                            }
+                                            HelloWorldPanel.createOrShow(this.context.extensionUri, address, dimensions, view, size);
+                                        }
+                                    );
+                                }
+                                else{
+                                    vscode.window.showInputBox({
+                                        placeHolder: 'Enter a constant value. Prefix with 0x for hexadecimal format.',
+                                        ignoreFocusOut: true,
+                                        prompt: 'Length'
+                                    }).then(
+                                        (length) => {
+                                            length = length.trim();
+                                            if (!this.validateValue(length)) {
+                                                vscode.window.showErrorMessage('Invalid length entered');
+                                                Reporting.sendEvent('Examine Memory', 'Invalid Length', length);
+                                                return;
+                                            }
+                                            HelloWorldPanel.createOrShow(this.context.extensionUri, address, length, view, size);
+                                        }
+                                    );
+                                }
+                            }
+                        );
                     }
                 );
             }
@@ -402,11 +450,38 @@ export class CortexDebugExtension {
         }
     }
 
+    private validateDimentions(address) {
+        if(address.includes('x')){
+            var splitted = address.split('x');
+            for(var i = 0; i < splitted.length; i++){
+                if(splitted[i].match(/^[0-9]+$/) == null){
+                    return null;
+                }
+            }
+            return address;
+        }
+        return null
+    }
+
     private validateAddress(address: string) {
         if (address === '') {
             return null;
         }
         return address;
+    }
+
+    private validateView(view: string){
+        if (view == '1d' || view == '2d' || view == 'ascii' || view == 'stack'){
+            return view;
+        }
+        return null;
+    }
+
+    private validateSize(view: string){
+        if (view == 'word' || view == 'half-word' || view == 'byte'){
+            return view;
+        }
+        return null;
     }
 
     private examineMemory() {
