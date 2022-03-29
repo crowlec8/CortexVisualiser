@@ -31,6 +31,7 @@ export class HelloWorldPanel {
   private stringLen: number;
   private spSave: number = 0;
   private spDiff: number;
+  private spAccum: number = 0;
   private static viewState: number = 0;
 
 
@@ -189,9 +190,14 @@ export class HelloWorldPanel {
         if(this.spSave == addressInt){
           this.spDiff = this.spSave - sp;
         }
+        if(sp < this.spSave){
+          this.spAccum += 1
+        }
         this.spSave = sp;
-        const dataLength = parseInt(HelloWorldPanel.paramLen, 10);
+        let dataLength = parseInt(HelloWorldPanel.paramLen, 10);
         const startAdd = addressInt - dataLength;
+        dataLength += 4
+        HelloWorldPanel.paramLen = dataLength.toString()
         session.customRequest('read-memory', { address: startAdd, length: HelloWorldPanel.paramLen }).then((data) => {
                 this.bytes = data.bytes;
                 const address = parseHexOrDecInt(data.startAddress);
@@ -265,7 +271,7 @@ export class HelloWorldPanel {
         break; 
       }  
       case 4: {
-        repeatNum = this.spDiff/HelloWorldPanel.divider;
+        repeatNum = 1;
         break;
       }
       default: { 
@@ -458,24 +464,43 @@ export class HelloWorldPanel {
           font-size: 30px;
           text-align: center;
         }
+        .grid-item2 {
+          background-color: rgba(255, 255, 255, 1);
+          color: rgba(128, 128, 128, 1);
+          border: 1px solid rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          font-size: 30px;
+          text-align: center;
+        }
         </style>
       </head>
       <body>
-      <div class="grid-container">`
-      let stackAdd = 0;
-      for(var i = 0; i < this.memArray.length; i++){
-        if(i == 0 || i%repeatNum == 0){
-          htmlStack += `<div class="grid-item">${this.addresses[i]}</div>`
-          stackAdd = parseHexOrDecInt(this.addresses[i]);
+      <div class="grid-container">
+        <div class="grid-item"><b>Address</b></div>
+        <div class="grid-item"><b>Memory</b></div>
+        <div class="grid-item"><b>Stack Pointer</b></div>`
+
+      const last = this.addresses.length - 1
+      for(var i = last; i >= last - ((this.spDiff*this.spAccum)/HelloWorldPanel.divider); i--){
+        if(this.addresses[i] < hexFormat(this.spSave, 8, true)){ 
+          htmlStack += `
+          <div class="grid-item2">${this.addresses[i]}</div>
+          <div class="grid-item2">${this.memArray[i]}</div>
+          <div class="grid-item2"></div>`
         }
-        htmlStack += `
-        <div class="grid-item">${this.memArray[i]}</div>`
-        if(i != 0 && i%repeatNum == repeatNum-1){
-          if(stackAdd == this.spSave){
-            htmlStack += `<div class="grid-item"><-sp</div>`
+        else{
+          htmlStack += `
+          <div class="grid-item">${this.addresses[i]}</div>
+          <div class="grid-item">${this.memArray[i]}</div>`
+          if(this.addresses[i] == hexFormat(this.spSave, 8, true)){
+            htmlStack+=`
+            <div class="grid-item"><-sp</div>
+            `
           }
           else{
-            htmlStack += `<div class="grid-item"></div>`
+            htmlStack+=`
+            <div class="grid-item"></div>
+            `
           }
         }
       }
@@ -483,6 +508,10 @@ export class HelloWorldPanel {
       </div>
       </body>
       </html>`
+
+
+    
+
 
     switch(HelloWorldPanel.viewState) { 
       case 1: { 
