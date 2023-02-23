@@ -1,3 +1,21 @@
+# Visualiser Extension
+Follow the instructions for the Cortex Debug section below.
+
+Once files are built and in debug mode, open command pallet. Select "Cortex-Debug: Visuals".
+From here you can coose to view the memory in any of the 4 following views
+
+1D:
+This views the memory in a one dimensional array
+2D:
+This views the memory in a two dimensional array
+Ascii:
+This views the memory as ascii strings and prints acordingly
+Stack:
+This views the stack memory
+
+All views are prompted to enter in memory sizes, memory lengths and memory address.
+NOTE: different address for stack memory.
+
 # Cortex Debug
 
 ![Visual Studio Code with Cortex-Debug Installed](./images/vs-code-screenshot.png)
